@@ -23,7 +23,7 @@ const port = process.env.PORT || 5000;
 
 app.use(cors({
   origin: [
-    'http://localhost:5173',
+    'https://civix-com.web.app/',
     'https://civix-backend-livid.vercel.app',
     process.env.CLIENT_URL
   ],
