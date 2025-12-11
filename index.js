@@ -22,12 +22,12 @@ const port = process.env.PORT || 5000;
 // MIDDLEWARE
 
 app.use(cors({
-    origin: [
-        'http://localhost:5173',
-        'http://localhost:5174',
-        process.env.CLIENT_URL || 'http://localhost:5173'
-    ],
-    credentials: true
+  origin: [
+    'http://localhost:5173',
+    'https://civix-backend-livid.vercel.app',
+    process.env.CLIENT_URL
+  ],
+  credentials: true
 }));
 app.use(express.json());
 app.use(cookieParser());

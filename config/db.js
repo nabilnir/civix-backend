@@ -1,9 +1,14 @@
 import { MongoClient, ServerApiVersion } from 'mongodb';
 import dotenv from 'dotenv';
 
+
+
 dotenv.config();
 
 const uri = process.env.MONGODB_URI;
+
+console.log('MongoDB URI:', uri ? 'Loaded ✓' : 'NOT LOADED ✗');
+console.log('URI starts with:', uri?.substring(0, 20));
 
 const client = new MongoClient(uri, {
   serverApi: {

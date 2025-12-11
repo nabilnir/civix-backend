@@ -8,10 +8,14 @@
     "start": "node index.js",
     "dev": "nodemon index.js"
   },
-  "keywords": ["civix", "infrastructure", "reporting"],
+  "keywords": [
+    "civix",
+    "infrastructure",
+    "reporting"
+  ],
   "author": "0xNir",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module", 
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cookie-parser": "^1.4.7",
