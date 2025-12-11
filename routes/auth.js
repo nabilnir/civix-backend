@@ -115,7 +115,6 @@ router.patch('/users/:email', verifyToken, async (req, res) => {
       });
     }
     
-   
     delete updates.role;
     delete updates.isPremium;
     delete updates.isBlocked;

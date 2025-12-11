@@ -163,7 +163,7 @@ router.get('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Get Payment Statistics (Admin Only)
+// Get Payment Statistics 
 router.get('/stats', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const allPayments = await paymentsCollection.find({}).toArray();
