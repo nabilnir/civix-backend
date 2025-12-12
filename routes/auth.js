@@ -24,12 +24,10 @@ router.post('/jwt', async (req, res) => {
   }
 });
 
-// Register User
 router.post('/register', async (req, res) => {
   try {
     const { name, email, photoURL, role = 'citizen' } = req.body;
     
-    // Checking if user exists
     const existingUser = await usersCollection.findOne({ email });
     if (existingUser) {
       return res.status(400).send({ 
@@ -66,12 +64,10 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Get User Info by Email
 router.get('/users/:email', verifyToken, async (req, res) => {
   try {
     const email = req.params.email;
     
-    // Verify user is requesting their own data
     if (email !== req.user.email) {
       return res.status(403).send({ 
         success: false,
@@ -101,12 +97,10 @@ router.get('/users/:email', verifyToken, async (req, res) => {
   }
 });
 
-// Update User Profile
 router.patch('/users/:email', verifyToken, async (req, res) => {
   try {
     const email = req.params.email;
     const updates = req.body;
-    
     
     if (email !== req.user.email) {
       return res.status(403).send({ 

@@ -6,12 +6,27 @@ import { verifyAdmin } from '../middleware/verifyRole.js';
 
 const router = express.Router();
 
-// Get All Issues (Admin Only) - with sorting by priority
 router.get('/issues', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const issues = await issuesCollection
-      .find({})
-      .sort({ priority: -1, createdAt: -1 }) 
+      .aggregate([
+        {
+          $addFields: {
+            priorityOrder: {
+              $switch: {
+                branches: [
+                  { case: { $eq: ['$priority', 'high'] }, then: 3 },
+                  { case: { $eq: ['$priority', 'normal'] }, then: 2 },
+                  { case: { $eq: ['$priority', 'low'] }, then: 1 }
+                ],
+                default: 2
+              }
+            }
+          }
+        },
+        { $sort: { priorityOrder: -1, createdAt: -1 } },
+        { $project: { priorityOrder: 0 } }
+      ])
       .toArray();
     
     res.send({ 
@@ -27,7 +42,6 @@ router.get('/issues', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Assign Staff to Issue (Admin Only)
 router.patch('/issues/:id/assign', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const id = req.params.id;
@@ -42,7 +56,6 @@ router.patch('/issues/:id/assign', verifyToken, verifyAdmin, async (req, res) =>
       });
     }
     
-    // Check if already assigned
     if (issue.assignedStaff) {
       return res.status(400).send({ 
         success: false,
@@ -50,7 +63,6 @@ router.patch('/issues/:id/assign', verifyToken, verifyAdmin, async (req, res) =>
       });
     }
     
-    // Get staff details
     const staff = await usersCollection.findOne({ 
       email: staffEmail, 
       role: 'staff' 
@@ -63,7 +75,6 @@ router.patch('/issues/:id/assign', verifyToken, verifyAdmin, async (req, res) =>
       });
     }
     
-    // Add timeline entry
     const timelineEntry = {
       status: 'assigned',
       message: `Issue assigned to staff: ${staff.name}`,
@@ -87,7 +98,6 @@ router.patch('/issues/:id/assign', verifyToken, verifyAdmin, async (req, res) =>
       }
     );
     
-    // Increment staff's assigned issues count
     await usersCollection.updateOne(
       { email: staffEmail },
       { $inc: { assignedIssuesCount: 1 } }
@@ -107,7 +117,6 @@ router.patch('/issues/:id/assign', verifyToken, verifyAdmin, async (req, res) =>
   }
 });
 
-// Reject Issue (Admin Only) - only if status is pending
 router.patch('/issues/:id/reject', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const id = req.params.id;
@@ -129,7 +138,6 @@ router.patch('/issues/:id/reject', verifyToken, verifyAdmin, async (req, res) =>
       });
     }
     
-    // Add timeline entry
     const timelineEntry = {
       status: 'rejected',
       message: `Issue rejected by admin. Reason: ${reason || 'No reason provided'}`,
@@ -165,7 +173,6 @@ router.patch('/issues/:id/reject', verifyToken, verifyAdmin, async (req, res) =>
   }
 });
 
-// Get Dashboard Statistics (Admin Only)
 router.get('/stats', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const totalIssues = await issuesCollection.countDocuments();
@@ -222,7 +229,6 @@ router.get('/stats', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Get Latest Data for Dashboard Widgets
 router.get('/latest', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const latestIssues = await issuesCollection

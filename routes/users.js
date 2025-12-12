@@ -6,7 +6,6 @@ import { verifyAdmin } from '../middleware/verifyRole.js';
 
 const router = express.Router();
 
-// Get All Citizens (Admin Only)
 router.get('/', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const users = await usersCollection
@@ -27,7 +26,6 @@ router.get('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Block/Unblock User (Admin Only)
 router.patch('/:email/block', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const email = req.params.email;
@@ -64,11 +62,9 @@ router.patch('/:email/block', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Make User Premium (After Payment)
 router.patch('/:email/premium', verifyToken, async (req, res) => {
   try {
     const email = req.params.email;
-    
     
     if (email !== req.user.email) {
       return res.status(403).send({ 
@@ -102,7 +98,6 @@ router.patch('/:email/premium', verifyToken, async (req, res) => {
   }
 });
 
-// Get User Statistics (For dashboard)
 router.get('/:email/stats', verifyToken, async (req, res) => {
   try {
     const email = req.params.email;
@@ -123,7 +118,6 @@ router.get('/:email/stats', verifyToken, async (req, res) => {
       });
     }
     
-    // Get payment stats
     const payments = await paymentsCollection
       .find({ userEmail: email })
       .toArray();

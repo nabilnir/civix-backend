@@ -7,7 +7,6 @@ import { verifyAdmin, verifyStaff } from '../middleware/verifyRole.js';
 
 const router = express.Router();
 
-// Get All Staff (Admin Only)
 router.get('/', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const staff = await usersCollection
@@ -28,13 +27,10 @@ router.get('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Create Staff (Admin Only)
-// Note: Frontend should create Firebase account first, then call this
 router.post('/', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const { name, email, phone, photoURL, password } = req.body;
     
-    // Checks if staff already exists
     const existingStaff = await usersCollection.findOne({ email });
     if (existingStaff) {
       return res.status(400).send({ 
@@ -43,7 +39,6 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
       });
     }
     
-    // Hash password 
     const hashedPassword = await bcrypt.hash(password, 10);
     
     const newStaff = {
@@ -52,7 +47,7 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
       phone,
       photoURL: photoURL || 'https://i.ibb.co/2W8Py4W/default-avatar.png',
       role: 'staff',
-      password: hashedPassword, // Store hashed password
+      password: hashedPassword, 
       isBlocked: false,
       assignedIssuesCount: 0,
       resolvedIssuesCount: 0,
@@ -62,7 +57,6 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
     
     const result = await usersCollection.insertOne(newStaff);
     
-    // Remove password from response
     delete newStaff.password;
     
     res.status(201).send({ 
@@ -79,16 +73,14 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Update Staff (Admin Only)
 router.patch('/:email', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const email = req.params.email;
     const updates = req.body;
     
-    // Don't allow changing role or email
     delete updates.role;
     delete updates.email;
-    delete updates.password; // Password updates handled separately
+    delete updates.password;
     
     updates.updatedAt = new Date();
     
@@ -118,12 +110,10 @@ router.patch('/:email', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Delete Staff (Admin Only)
 router.delete('/:email', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const email = req.params.email;
     
-    // Check if staff has assigned issues
     const assignedIssues = await issuesCollection.countDocuments({ 
       'assignedStaff.email': email 
     });
@@ -161,12 +151,10 @@ router.delete('/:email', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Get Assigned Issues (Staff Only)
 router.get('/:email/assigned-issues', verifyToken, verifyStaff, async (req, res) => {
   try {
     const email = req.params.email;
     
-    // Verify staff is requesting their own issues
     if (email !== req.user.email) {
       return res.status(403).send({ 
         success: false,
@@ -175,8 +163,25 @@ router.get('/:email/assigned-issues', verifyToken, verifyStaff, async (req, res)
     }
     
     const issues = await issuesCollection
-      .find({ 'assignedStaff.email': email })
-      .sort({ priority: -1, createdAt: -1 })
+      .aggregate([
+        { $match: { 'assignedStaff.email': email } },
+        {
+          $addFields: {
+            priorityOrder: {
+              $switch: {
+                branches: [
+                  { case: { $eq: ['$priority', 'high'] }, then: 3 },
+                  { case: { $eq: ['$priority', 'normal'] }, then: 2 },
+                  { case: { $eq: ['$priority', 'low'] }, then: 1 }
+                ],
+                default: 2
+              }
+            }
+          }
+        },
+        { $sort: { priorityOrder: -1, createdAt: -1 } },
+        { $project: { priorityOrder: 0 } }
+      ])
       .toArray();
     
     res.send({ 
@@ -192,7 +197,6 @@ router.get('/:email/assigned-issues', verifyToken, verifyStaff, async (req, res)
   }
 });
 
-// Update Issue Status (Staff Only)
 router.patch('/issues/:id/status', verifyToken, verifyStaff, async (req, res) => {
   try {
     const id = req.params.id;
@@ -208,7 +212,6 @@ router.patch('/issues/:id/status', verifyToken, verifyStaff, async (req, res) =>
       });
     }
     
-    // Verify issue is assigned to this staff
     if (issue.assignedStaff?.email !== staffEmail) {
       return res.status(403).send({ 
         success: false,
@@ -216,7 +219,6 @@ router.patch('/issues/:id/status', verifyToken, verifyStaff, async (req, res) =>
       });
     }
     
-    // Validate status transition
     const validTransitions = {
       'pending': ['in-progress'],
       'in-progress': ['working', 'resolved'],
@@ -231,7 +233,6 @@ router.patch('/issues/:id/status', verifyToken, verifyStaff, async (req, res) =>
       });
     }
     
-    // Add timeline entry
     const timelineEntry = {
       status,
       message: message || `Status changed to ${status}`,
@@ -251,7 +252,6 @@ router.patch('/issues/:id/status', verifyToken, verifyStaff, async (req, res) =>
       }
     );
     
-    // If resolved, increment staff's resolved count
     if (status === 'resolved') {
       await usersCollection.updateOne(
         { email: staffEmail },
@@ -273,7 +273,6 @@ router.patch('/issues/:id/status', verifyToken, verifyStaff, async (req, res) =>
   }
 });
 
-// Get Staff Statistics (Staff Only)
 router.get('/:email/stats', verifyToken, verifyStaff, async (req, res) => {
   try {
     const email = req.params.email;

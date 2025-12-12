@@ -7,7 +7,6 @@ import { verifyAdmin } from '../middleware/verifyRole.js';
 
 const router = express.Router();
 
-// Create Payment Record 
 router.post('/', verifyToken, async (req, res) => {
   try {
     const { amount, type, issueId, transactionId, method } = req.body;
@@ -20,6 +19,22 @@ router.post('/', verifyToken, async (req, res) => {
         success: false,
         message: 'User not found' 
       });
+    }
+    
+    if (type === 'boost' && issueId) {
+      const issue = await issuesCollection.findOne({ _id: new ObjectId(issueId) });
+      if (!issue) {
+        return res.status(404).send({ 
+          success: false,
+          message: 'Issue not found' 
+        });
+      }
+      if (issue.userEmail !== userEmail) {
+        return res.status(403).send({ 
+          success: false,
+          message: 'You can only boost your own issues' 
+        });
+      }
     }
     
     const payment = {
@@ -37,7 +52,6 @@ router.post('/', verifyToken, async (req, res) => {
     
     const result = await paymentsCollection.insertOne(payment);
     
-    // If boost payment, update issue priority
     if (type === 'boost' && issueId) {
       await issuesCollection.updateOne(
         { _id: new ObjectId(issueId) },
@@ -59,7 +73,6 @@ router.post('/', verifyToken, async (req, res) => {
       );
     }
     
-    // If subscription payment, make user premium
     if (type === 'subscription') {
       await usersCollection.updateOne(
         { email: userEmail },
@@ -86,12 +99,10 @@ router.post('/', verifyToken, async (req, res) => {
   }
 });
 
-// Get User Payment History
 router.get('/user/:email', verifyToken, async (req, res) => {
   try {
     const email = req.params.email;
     
-    // Verify user is requesting their own payments
     if (email !== req.user.email) {
       return res.status(403).send({ 
         success: false,
@@ -117,7 +128,6 @@ router.get('/user/:email', verifyToken, async (req, res) => {
   }
 });
 
-// Get All Payments (Admin Only) with filters
 router.get('/', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const type = req.query.type || '';
@@ -163,7 +173,6 @@ router.get('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-// Get Payment Statistics 
 router.get('/stats', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const allPayments = await paymentsCollection.find({}).toArray();
@@ -172,7 +181,6 @@ router.get('/stats', verifyToken, verifyAdmin, async (req, res) => {
     const boostPayments = allPayments.filter(p => p.type === 'boost').length;
     const subscriptionPayments = allPayments.filter(p => p.type === 'subscription').length;
     
-    // Group by month for chart
     const paymentsByMonth = {};
     allPayments.forEach(payment => {
       const month = new Date(payment.createdAt).toLocaleString('default', { month: 'short' });

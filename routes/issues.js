@@ -18,10 +18,8 @@ router.get('/', async (req, res) => {
     const priority = req.query.priority || '';
     const category = req.query.category || '';
     
-    // Build query
     const query = {};
     
-    // Search by title, category, or location
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
@@ -34,12 +32,28 @@ router.get('/', async (req, res) => {
     if (priority) query.priority = priority;
     if (category) query.category = category;
     
-    // Fetch issues - Boosted  first, then by date
     const issues = await issuesCollection
-      .find(query)
-      .sort({ priority: -1, createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
+      .aggregate([
+        { $match: query },
+        {
+          $addFields: {
+            priorityOrder: {
+              $switch: {
+                branches: [
+                  { case: { $eq: ['$priority', 'high'] }, then: 3 },
+                  { case: { $eq: ['$priority', 'normal'] }, then: 2 },
+                  { case: { $eq: ['$priority', 'low'] }, then: 1 }
+                ],
+                default: 2
+              }
+            }
+          }
+        },
+        { $sort: { priorityOrder: -1, createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+        { $project: { priorityOrder: 0 } }
+      ])
       .toArray();
     
     const total = await issuesCollection.countDocuments(query);
@@ -62,7 +76,6 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get Single Issue by ID (Public)
 router.get('/:id', async (req, res) => {
   try {
     const id = req.params.id;
@@ -88,12 +101,10 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Get Issues by User Email (Private)
 router.get('/user/:email', verifyToken, async (req, res) => {
   try {
     const email = req.params.email;
     
-    // Verify user is requesting their own issues
     if (email !== req.user.email) {
       return res.status(403).send({ 
         success: false,
@@ -119,13 +130,11 @@ router.get('/user/:email', verifyToken, async (req, res) => {
   }
 });
 
-// Create New Issue (Private)
 router.post('/', verifyToken, verifyCitizen, async (req, res) => {
   try {
     const issueData = req.body;
     const userEmail = req.user.email;
     
-    // Get user data
     const user = await usersCollection.findOne({ email: userEmail });
     
     if (!user) {
@@ -135,7 +144,6 @@ router.post('/', verifyToken, verifyCitizen, async (req, res) => {
       });
     }
     
-    // Check if user is blocked
     if (user.isBlocked) {
       return res.status(403).send({ 
         success: false,
@@ -143,7 +151,6 @@ router.post('/', verifyToken, verifyCitizen, async (req, res) => {
       });
     }
     
-    // Check issue limit for free users
     if (!user.isPremium && user.issueCount >= 3) {
       return res.status(403).send({ 
         success: false,
@@ -177,7 +184,6 @@ router.post('/', verifyToken, verifyCitizen, async (req, res) => {
     
     const result = await issuesCollection.insertOne(newIssue);
     
-    // Increment user's issue count
     await usersCollection.updateOne(
       { email: userEmail },
       { $inc: { issueCount: 1 } }
@@ -197,7 +203,6 @@ router.post('/', verifyToken, verifyCitizen, async (req, res) => {
   }
 });
 
-// Update Issue 
 router.patch('/:id', verifyToken, async (req, res) => {
   try {
     const id = req.params.id;
@@ -213,7 +218,6 @@ router.patch('/:id', verifyToken, async (req, res) => {
       });
     }
     
-    // Only owner can edit
     if (issue.userEmail !== userEmail) {
       return res.status(403).send({ 
         success: false,
@@ -221,7 +225,6 @@ router.patch('/:id', verifyToken, async (req, res) => {
       });
     }
     
-    // Can only edit if status is pending
     if (issue.status !== 'pending') {
       return res.status(400).send({ 
         success: false,
@@ -229,7 +232,6 @@ router.patch('/:id', verifyToken, async (req, res) => {
       });
     }
     
-    // Don't allow changing these fields
     delete updates.userEmail;
     delete updates.status;
     delete updates.priority;
@@ -258,7 +260,6 @@ router.patch('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Delete Issue (Private)
 router.delete('/:id', verifyToken, async (req, res) => {
   try {
     const id = req.params.id;
@@ -273,7 +274,6 @@ router.delete('/:id', verifyToken, async (req, res) => {
       });
     }
     
-    // Only owner can delete
     if (issue.userEmail !== userEmail) {
       return res.status(403).send({ 
         success: false,
@@ -283,7 +283,6 @@ router.delete('/:id', verifyToken, async (req, res) => {
     
     const result = await issuesCollection.deleteOne({ _id: new ObjectId(id) });
     
-    // Decrease user's issue count
     await usersCollection.updateOne(
       { email: userEmail },
       { $inc: { issueCount: -1 } }
@@ -303,7 +302,6 @@ router.delete('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Upvote Issue (Private)
 router.post('/:id/upvote', verifyToken, async (req, res) => {
   try {
     const id = req.params.id;
@@ -318,7 +316,6 @@ router.post('/:id/upvote', verifyToken, async (req, res) => {
       });
     }
     
-    // Check if user already upvoted
     if (issue.upvotedBy?.includes(userEmail)) {
       return res.status(400).send({ 
         success: false,
@@ -326,7 +323,6 @@ router.post('/:id/upvote', verifyToken, async (req, res) => {
       });
     }
     
-    // Cannot upvote own issue
     if (issue.userEmail === userEmail) {
       return res.status(403).send({ 
         success: false,
@@ -356,7 +352,6 @@ router.post('/:id/upvote', verifyToken, async (req, res) => {
   }
 });
 
-// Get Latest Resolved Issues (public)
 router.get('/resolved/latest', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 6;

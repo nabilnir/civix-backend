@@ -16,7 +16,7 @@ const app = express();
 
 app.use(cors({
   origin: [
-    'https://civix-com.web.app/',
+    'https://civix-com.web.app',
     'https://civix-backend-livid.vercel.app',
     process.env.CLIENT_URL
   ],
@@ -38,5 +38,4 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Export handler for Vercel
 export default app;

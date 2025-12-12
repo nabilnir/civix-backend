@@ -1,8 +1,6 @@
 import { MongoClient, ServerApiVersion } from 'mongodb';
 import dotenv from 'dotenv';
 
-
-
 dotenv.config();
 
 const uri = process.env.MONGODB_URI;
@@ -34,7 +32,6 @@ async function connectDB() {
     issuesCollection = db.collection("issues");
     paymentsCollection = db.collection("payments");
     staffCollection = db.collection("staff");
-    
     
     await issuesCollection.createIndex({ status: 1 });
     await issuesCollection.createIndex({ priority: 1 });
