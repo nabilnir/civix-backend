@@ -16,7 +16,7 @@ const app = express();
 
 app.use(cors({
   origin: [
-    'https://civix-com.web.app',
+    'https://civix-auth-system.web.app/',
     'https://civix-backend-livid.vercel.app',
     process.env.CLIENT_URL
   ],
@@ -28,14 +28,42 @@ app.use(cookieParser());
 connectDB();
 
 app.get('/', (req, res) => {
-  res.send({ success: true, message: 'Civix Server is running!' });
+  res.send({ 
+    success: true, 
+    message: 'Civix Server is running!',
+    endpoints: {
+      auth: '/api/auth',
+      issues: '/api/issues',
+      users: '/api/users',
+      staff: '/api/staff',
+      payments: '/api/payments',
+      admin: '/api/admin'
+    }
+  });
 });
 
-app.use('/api/auth', authRoutes);
-app.use('/api/issues', issuesRoutes);
-app.use('/api/users', usersRoutes);
-app.use('/api/staff', staffRoutes);
-app.use('/api/payments', paymentsRoutes);
-app.use('/api/admin', adminRoutes);
+app.use('/auth', authRoutes);
+app.use('/issues', issuesRoutes);
+app.use('/users', usersRoutes);
+app.use('/staff', staffRoutes);
+app.use('/payments', paymentsRoutes);
+app.use('/admin', adminRoutes);
+
+app.use((req, res) => {
+  res.status(404).send({
+    success: false,
+    message: 'Route not found',
+    requestedUrl: req.originalUrl
+  });
+});
+
+app.use((err, req, res, next) => {
+  console.error('Error:', err.stack);
+  res.status(500).send({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : undefined
+  });
+});
 
 export default app;

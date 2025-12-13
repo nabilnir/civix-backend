@@ -17,7 +17,7 @@ const port = process.env.PORT || 5000;
 
 app.use(cors({
   origin: [
-    'https://civix-com.web.app',
+    'https://civix-auth-system.web.app/',
     'https://civix-backend-livid.vercel.app',
     process.env.CLIENT_URL
   ],
