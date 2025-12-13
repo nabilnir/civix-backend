@@ -16,7 +16,7 @@ const app = express();
 
 app.use(cors({
   origin: [
-    'https://civix-auth-system.web.app/',
+    'https://civix-auth-system.web.app',
     'https://civix-backend-livid.vercel.app',
     process.env.CLIENT_URL
   ],
@@ -25,12 +25,26 @@ app.use(cors({
 
 app.use(express.json());
 app.use(cookieParser());
-connectDB();
 
-app.get('/', (req, res) => {
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    console.error('Database connection error:', error);
+    res.status(500).send({
+      success: false,
+      message: 'Database connection failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+});
+
+app.get('/api', (req, res) => {
   res.send({ 
     success: true, 
     message: 'Civix Server is running!',
+    timestamp: new Date(),
     endpoints: {
       auth: '/api/auth',
       issues: '/api/issues',
@@ -42,12 +56,12 @@ app.get('/', (req, res) => {
   });
 });
 
-app.use('/auth', authRoutes);
-app.use('/issues', issuesRoutes);
-app.use('/users', usersRoutes);
-app.use('/staff', staffRoutes);
-app.use('/payments', paymentsRoutes);
-app.use('/admin', adminRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/issues', issuesRoutes);
+app.use('/api/users', usersRoutes);
+app.use('/api/staff', staffRoutes);
+app.use('/api/payments', paymentsRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.use((req, res) => {
   res.status(404).send({

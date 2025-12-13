@@ -21,10 +21,17 @@ let usersCollection;
 let issuesCollection;
 let paymentsCollection;
 let staffCollection;
+let isConnected = false;
 
 async function connectDB() {
+  if (isConnected && db) {
+    return;
+  }
+
   try {
-    await client.connect();
+    if (!client.topology || !client.topology.isConnected()) {
+      await client.connect();
+    }
     console.log("✅ Connected to MongoDB!");
     
     db = client.db("civixDB");
@@ -33,16 +40,22 @@ async function connectDB() {
     paymentsCollection = db.collection("payments");
     staffCollection = db.collection("staff");
     
-    await issuesCollection.createIndex({ status: 1 });
-    await issuesCollection.createIndex({ priority: 1 });
-    await issuesCollection.createIndex({ userEmail: 1 });
-    await usersCollection.createIndex({ email: 1 }, { unique: true });
+    try {
+      await issuesCollection.createIndex({ status: 1 });
+      await issuesCollection.createIndex({ priority: 1 });
+      await issuesCollection.createIndex({ userEmail: 1 });
+      await usersCollection.createIndex({ email: 1 }, { unique: true });
+      console.log("✅ Database indexes created!");
+    } catch (indexError) {
+      console.log("Index creation skipped (may already exist)");
+    }
     
-    console.log("✅ Database indexes created!");
+    isConnected = true;
     
   } catch (error) {
     console.error("❌ MongoDB connection error:", error);
-    process.exit(1);
+    isConnected = false;
+    throw error;
   }
 }
 
