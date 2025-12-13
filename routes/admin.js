@@ -266,4 +266,96 @@ router.get('/latest', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
+// Get all citizens with search and filter
+router.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const { search, status } = req.query;
+    
+    let query = { role: 'citizen' };
+    
+    // Search filter
+    if (search) {
+      query.$or = [
+        { name: { $regex: search, $options: 'i' } },
+        { email: { $regex: search, $options: 'i' } }
+      ];
+    }
+    
+    // Status filter
+    if (status === 'blocked') {
+      query.isBlocked = true;
+    } else if (status === 'active') {
+      query.isBlocked = { $ne: true };
+    } else if (status === 'premium') {
+      query.isPremium = true;
+    }
+    
+    const users = await usersCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
+    
+    // Get issue counts for each user (use existing issueCount from user document or count from issues collection)
+    const usersWithCounts = await Promise.all(
+      users.map(async (user) => {
+        // Use existing issueCount from user document if available, otherwise count from issues
+        const issueCount = user.issueCount || await issuesCollection.countDocuments({ userEmail: user.email });
+        return {
+          ...user,
+          issueCount: issueCount,
+          issuesCount: issueCount // Also include plural version for frontend compatibility
+        };
+      })
+    );
+    
+    res.send({ 
+      success: true,
+      data: usersWithCounts 
+    });
+  } catch (error) {
+    res.status(500).send({ 
+      success: false,
+      message: 'Error fetching users', 
+      error: error.message 
+    });
+  }
+});
+
+// Block/Unblock user
+router.patch('/users/:email/block', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const email = req.params.email;
+    const { isBlocked } = req.body;
+    
+    const result = await usersCollection.updateOne(
+      { email },
+      { 
+        $set: { 
+          isBlocked: isBlocked !== undefined ? isBlocked : true,
+          updatedAt: new Date() 
+        } 
+      }
+    );
+    
+    if (result.matchedCount === 0) {
+      return res.status(404).send({ 
+        success: false,
+        message: 'User not found' 
+      });
+    }
+    
+    res.send({ 
+      success: true,
+      message: `User ${isBlocked ? 'blocked' : 'unblocked'} successfully`, 
+      data: result 
+    });
+  } catch (error) {
+    res.status(500).send({ 
+      success: false,
+      message: 'Error updating user status', 
+      error: error.message 
+    });
+  }
+});
+
 export default router;

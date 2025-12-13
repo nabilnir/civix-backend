@@ -11,30 +11,31 @@ router.get('/', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
     
     const search = req.query.search || '';
     const status = req.query.status || '';
     const priority = req.query.priority || '';
     const category = req.query.category || '';
     
-    const query = {};
+    const baseQuery = {};
     
     if (search) {
-      query.$or = [
+      baseQuery.$or = [
         { title: { $regex: search, $options: 'i' } },
         { location: { $regex: search, $options: 'i' } },
         { category: { $regex: search, $options: 'i' } }
       ];
     }
     
-    if (status) query.status = status;
-    if (priority) query.priority = priority;
-    if (category) query.category = category;
+    if (status) baseQuery.status = status;
+    if (priority) baseQuery.priority = priority;
+    if (category) baseQuery.category = category;
     
-    const issues = await issuesCollection
+    // Step 1: Fetch ALL boosted issues (those with boostedAt field) that match filters
+    const boostedQuery = { ...baseQuery, boostedAt: { $exists: true, $ne: null } };
+    const boostedIssues = await issuesCollection
       .aggregate([
-        { $match: query },
+        { $match: boostedQuery },
         {
           $addFields: {
             priorityOrder: {
@@ -49,22 +50,105 @@ router.get('/', async (req, res) => {
             }
           }
         },
-        { $sort: { priorityOrder: -1, createdAt: -1 } },
-        { $skip: skip },
-        { $limit: limit },
+        { $sort: { priorityOrder: -1, boostedAt: -1, createdAt: -1 } },
         { $project: { priorityOrder: 0 } }
       ])
       .toArray();
     
-    const total = await issuesCollection.countDocuments(query);
+    // Step 2: Fetch regular (non-boosted) issues with pagination
+    // Regular issues are those without boostedAt or with null boostedAt
+    const regularQuery = {
+      ...baseQuery,
+      $or: [
+        { boostedAt: { $exists: false } },
+        { boostedAt: null }
+      ]
+    };
+    
+    const regularTotal = await issuesCollection.countDocuments(regularQuery);
+    
+    let regularIssues = [];
+    let skip = 0;
+    
+    if (page === 1) {
+      // On page 1, we need to account for boosted issues
+      // Calculate how many regular issues we need after boosted issues
+      const boostedCount = boostedIssues.length;
+      const remainingSlots = Math.max(0, limit - boostedCount);
+      
+      if (remainingSlots > 0) {
+        regularIssues = await issuesCollection
+          .aggregate([
+            { $match: regularQuery },
+            {
+              $addFields: {
+                priorityOrder: {
+                  $switch: {
+                    branches: [
+                      { case: { $eq: ['$priority', 'high'] }, then: 3 },
+                      { case: { $eq: ['$priority', 'normal'] }, then: 2 },
+                      { case: { $eq: ['$priority', 'low'] }, then: 1 }
+                    ],
+                    default: 2
+                  }
+                }
+              }
+            },
+            { $sort: { priorityOrder: -1, createdAt: -1 } },
+            { $limit: remainingSlots },
+            { $project: { priorityOrder: 0 } }
+          ])
+          .toArray();
+      }
+    } else {
+      // On subsequent pages, skip the regular issues that were shown on page 1
+      const boostedCount = boostedIssues.length;
+      // Page 1 showed: boostedCount + (limit - boostedCount) regular issues
+      // So page 2+ should skip: (limit - boostedCount) + (page - 2) * limit
+      skip = (limit - boostedCount) + (page - 2) * limit;
+      
+      regularIssues = await issuesCollection
+        .aggregate([
+          { $match: regularQuery },
+          {
+            $addFields: {
+              priorityOrder: {
+                $switch: {
+                  branches: [
+                    { case: { $eq: ['$priority', 'high'] }, then: 3 },
+                    { case: { $eq: ['$priority', 'normal'] }, then: 2 },
+                    { case: { $eq: ['$priority', 'low'] }, then: 1 }
+                  ],
+                  default: 2
+                }
+              }
+            }
+          },
+          { $sort: { priorityOrder: -1, createdAt: -1 } },
+          { $skip: skip },
+          { $limit: limit },
+          { $project: { priorityOrder: 0 } }
+        ])
+        .toArray();
+    }
+    
+    // Step 3: Combine boosted and regular issues
+    const allIssues = page === 1 
+      ? [...boostedIssues, ...regularIssues]
+      : regularIssues;
+    
+    // Calculate total pages: boosted issues always on page 1, then regular issues
+    const totalIssues = boostedIssues.length + regularTotal;
+    const totalPages = Math.ceil(totalIssues / limit);
     
     res.send({
       success: true,
       data: {
-        issues,
+        issues: allIssues,
         currentPage: page,
-        totalPages: Math.ceil(total / limit),
-        totalIssues: total
+        totalPages: totalPages,
+        totalIssues: totalIssues,
+        boostedCount: boostedIssues.length
       }
     });
   } catch (error) {
