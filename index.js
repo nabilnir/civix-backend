@@ -16,12 +16,37 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 app.use(cors({
-  origin: [
-    'https://civix-auth-system.web.app/',
-    'https://civix-backend-livid.vercel.app',
-    process.env.CLIENT_URL
-  ],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      'https://civix-auth-system.web.app',
+      'https://civix-backend-livid.vercel.app',
+      process.env.CLIENT_URL,
+      // Development origins
+      'http://localhost:5173',
+      'http://localhost:3000',
+      'http://localhost:5174',
+      'http://127.0.0.1:5173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5174'
+    ].filter(Boolean); // Remove undefined values
+    
+    // Check if origin is in allowed list or is a localhost origin in development
+    const isLocalhost = origin && /^http:\/\/localhost(:\d+)?$/.test(origin) || 
+                       origin && /^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin);
+    
+    if (allowedOrigins.includes(origin) || (isLocalhost && process.env.NODE_ENV !== 'production')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range']
 }));
 app.use(express.json());
 app.use(cookieParser());
