@@ -173,6 +173,52 @@ router.patch('/issues/:id/reject', verifyToken, verifyAdmin, async (req, res) =>
   }
 });
 
+router.delete('/issues/:id', verifyToken, verifyAdmin, async (req, res) => {
+  try {
+    const id = req.params.id;
+    
+    const issue = await issuesCollection.findOne({ _id: new ObjectId(id) });
+    
+    if (!issue) {
+      return res.status(404).send({ 
+        success: false,
+        message: 'Issue not found' 
+      });
+    }
+    
+    // Delete the issue
+    const result = await issuesCollection.deleteOne({ _id: new ObjectId(id) });
+    
+    // Update user's issue count if issue has a userEmail
+    if (issue.userEmail) {
+      await usersCollection.updateOne(
+        { email: issue.userEmail },
+        { $inc: { issueCount: -1 } }
+      );
+    }
+    
+    // Also handle reporterEmail if different
+    if (issue.reporterEmail && issue.reporterEmail !== issue.userEmail) {
+      await usersCollection.updateOne(
+        { email: issue.reporterEmail },
+        { $inc: { issueCount: -1 } }
+      );
+    }
+    
+    res.send({ 
+      success: true,
+      message: 'Issue deleted successfully', 
+      data: result 
+    });
+  } catch (error) {
+    res.status(500).send({ 
+      success: false,
+      message: 'Error deleting issue', 
+      error: error.message 
+    });
+  }
+});
+
 router.get('/stats', verifyToken, verifyAdmin, async (req, res) => {
   try {
     const totalIssues = await issuesCollection.countDocuments();
