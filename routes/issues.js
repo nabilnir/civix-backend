@@ -325,9 +325,25 @@ router.patch('/:id', verifyToken, async (req, res) => {
     
     updates.updatedAt = new Date();
     
+    // Get user name for timeline entry
+    const user = await usersCollection.findOne({ email: userEmail });
+    const userName = user?.name || userEmail;
+    
+    // Create timeline entry for issue edit
+    const timelineEntry = {
+      status: issue.status, // Keep current status
+      message: `Issue updated by ${userName}`,
+      updatedBy: userEmail,
+      updatedByRole: 'citizen',
+      date: new Date()
+    };
+    
     const result = await issuesCollection.updateOne(
       { _id: new ObjectId(id) },
-      { $set: updates }
+      { 
+        $set: updates,
+        $push: { timeline: timelineEntry }
+      }
     );
     
     res.send({ 
