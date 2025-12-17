@@ -73,10 +73,23 @@ router.post('/', verifyToken, verifyAdmin, async (req, res) => {
   }
 });
 
-router.patch('/:email', verifyToken, verifyAdmin, async (req, res) => {
+// Update staff member
+// - Admins can update any staff member
+// - Staff can only update their own profile (used from staff dashboard)
+router.patch('/:email', verifyToken, verifyStaff, async (req, res) => {
   try {
     const email = req.params.email;
     const updates = req.body;
+    const requesterEmail = req.user.email;
+    const requesterRole = req.user.role;
+
+    // If the requester is a staff user, they can only update their own profile
+    if (requesterRole === 'staff' && requesterEmail !== email) {
+      return res.status(403).send({
+        success: false,
+        message: 'Forbidden: You can only update your own profile',
+      });
+    }
     
     delete updates.role;
     delete updates.email;
