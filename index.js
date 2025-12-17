@@ -9,6 +9,8 @@ import usersRoutes from './routes/users.js';
 import staffRoutes from './routes/staff.js';
 import paymentsRoutes from './routes/payments.js';
 import adminRoutes from './routes/admin.js';
+import notificationsRoutes from './routes/notifications.js';
+import messagesRoutes from './routes/messages.js';
 
 dotenv.config();
 
@@ -58,13 +60,15 @@ app.get('/', (req, res) => {
         success: true,
         message: ' Civix Server is running!',
         timestamp: new Date(),
-        endpoints: {
+            endpoints: {
             auth: '/api/auth',
             issues: '/api/issues',
             users: '/api/users',
             staff: '/api/staff',
             payments: '/api/payments',
-            admin: '/api/admin'
+            admin: '/api/admin',
+            notifications: '/api/notifications',
+            messages: '/api/messages'
         }
     });
 });
@@ -75,6 +79,8 @@ app.use('/api/users', usersRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/payments', paymentsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/messages', messagesRoutes);
 
 app.use((req, res) => {
     res.status(404).send({

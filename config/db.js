@@ -21,6 +21,8 @@ let usersCollection;
 let issuesCollection;
 let paymentsCollection;
 let staffCollection;
+let notificationsCollection;
+let messagesCollection;
 let isConnected = false;
 
 async function connectDB() {
@@ -39,6 +41,8 @@ async function connectDB() {
     issuesCollection = db.collection("issues");
     paymentsCollection = db.collection("payments");
     staffCollection = db.collection("staff");
+    notificationsCollection = db.collection("notifications");
+    messagesCollection = db.collection("messages");
     
     try {
       await issuesCollection.createIndex({ status: 1 });
@@ -59,4 +63,4 @@ async function connectDB() {
   }
 }
 
-export { connectDB, db, usersCollection, issuesCollection, paymentsCollection, staffCollection, client };
+export { connectDB, db, usersCollection, issuesCollection, paymentsCollection, staffCollection, notificationsCollection, messagesCollection, client };
